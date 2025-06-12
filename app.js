@@ -1,5 +1,4 @@
 import x from "express";
-
 import BusBoy from "busboy";
 import zlib from "zlib";
 
@@ -14,7 +13,6 @@ app.post("/zipper", (req, res) => {
 
   busboy.on("file", (fieldname, file, info) => {
     file.on("data", (data) => {
-      console.log(data);
       fileBuffer = Buffer.concat([fileBuffer, data]);
     });
   });
@@ -30,4 +28,9 @@ app.post("/zipper", (req, res) => {
   });
 
   req.pipe(busboy);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
