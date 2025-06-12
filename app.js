@@ -1,31 +1,33 @@
-const express = require('express');
-const multer = require('multer');
-const zlib = require('zlib');
+import x from "express";
 
-const app = express();
-const upload = multer();
+import BusBoy from "busboy";
+import zlib from "zlib";
 
-app.get('/login', (req, res) => {
-  res.type('text/plain; charset=UTF-8').send('1147329');
-});
+const app = x();
 
-app.post('/zipper', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send('No file uploaded');
-  }
+app.get("/login", (req, res) => res.send("1147329"));
 
-  zlib.gzip(req.file.buffer, (err, compressedData) => {
-    if (err) {
-      return res.status(500).send('Compression failed');
-    }
+app.post("/zipper", (req, res) => {
+  const busboy = BusBoy({ headers: req.headers });
 
-    res.set({
-      'Content-Type': 'application/gzip',
-      'Content-Disposition': 'attachment; filename="result.gz"'
+  let fileBuffer = Buffer.alloc(0);
+
+  busboy.on("file", (fieldname, file, info) => {
+    file.on("data", (data) => {
+      console.log(data);
+      fileBuffer = Buffer.concat([fileBuffer, data]);
     });
-    res.send(compressedData);
   });
-});
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  busboy.on("finish", () => {
+    res.attachment(`result.gz`);
+
+    const gzip = zlib.createGzip();
+    gzip.on("error", (err) => res.status(500).send({ error: err.message }));
+
+    gzip.pipe(res);
+    gzip.end(fileBuffer);
+  });
+
+  req.pipe(busboy);
+});
