@@ -1,36 +1,38 @@
-import x from "express";
-import BusBoy from "busboy";
-import zlib from "zlib";
+import express from "express";
+import https from "https";
 
-const app = x();
+const app = express();
 
 app.get("/login", (req, res) => res.send("1147329"));
 
-app.post("/zipper", (req, res) => {
-  const busboy = BusBoy({ headers: req.headers });
+app.get("/id/:N", (req, res) => {
+  const N = req.params.N;
+  const url = `https://nd.kodaktor.ru/users/${N}`;
 
-  let fileBuffer = Buffer.alloc(0);
+  const options = {
+    method: "GET",
+    headers: {} // Пустые заголовки — не добавляем Content-Type
+  };
 
-  busboy.on("file", (fieldname, file, info) => {
-    file.on("data", (data) => {
-      fileBuffer = Buffer.concat([fileBuffer, data]);
+  https.get(url, options, (resp) => {
+    let data = "";
+
+    resp.on("data", (chunk) => data += chunk);
+    resp.on("end", () => {
+      try {
+        const json = JSON.parse(data);
+        res.send(json.login || "no login");
+      } catch (e) {
+        res.status(500).send("Invalid JSON");
+      }
     });
+  }).on("error", (err) => {
+    res.status(500).send("Request failed");
   });
-
-  busboy.on("finish", () => {
-    res.attachment(`result.gz`);
-
-    const gzip = zlib.createGzip();
-    gzip.on("error", (err) => res.status(500).send({ error: err.message }));
-
-    gzip.pipe(res);
-    gzip.end(fileBuffer);
-  });
-
-  req.pipe(busboy);
 });
 
+// Порт для Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log("Server running on port", PORT);
 });
