@@ -1,38 +1,47 @@
 import express from "express";
-import https from "https";
+import Busboy from "busboy";
+import { privateDecrypt } from "crypto";
 
 const app = express();
 
 app.get("/login", (req, res) => res.send("1147329"));
 
-app.get("/id/:N", (req, res) => {
-  const N = req.params.N;
-  const url = `https://nd.kodaktor.ru/users/${N}`;
+app.post("/decypher", (req, res) => {
+  const busboy = Busboy({ headers: req.headers });
 
-  const options = {
-    method: "GET",
-    headers: {} // Пустые заголовки — не добавляем Content-Type
-  };
+  let keyBuffer = Buffer.alloc(0);
+  let secretBuffer = Buffer.alloc(0);
 
-  https.get(url, options, (resp) => {
-    let data = "";
-
-    resp.on("data", (chunk) => data += chunk);
-    resp.on("end", () => {
-      try {
-        const json = JSON.parse(data);
-        res.send(json.login || "no login");
-      } catch (e) {
-        res.status(500).send("Invalid JSON");
-      }
+  busboy.on("file", (fieldname, file, filename, encoding, mimetype) => {
+    const chunks = [];
+    file.on("data", (data) => chunks.push(data));
+    file.on("end", () => {
+      const buffer = Buffer.concat(chunks);
+      if (fieldname === "key") keyBuffer = buffer;
+      else if (fieldname === "secret") secretBuffer = buffer;
     });
-  }).on("error", (err) => {
-    res.status(500).send("Request failed");
   });
+
+  busboy.on("finish", () => {
+    try {
+      const decrypted = privateDecrypt(
+        {
+          key: keyBuffer.toString("utf-8"),
+          padding: crypto.constants.RSA_PKCS1_PADDING,
+        },
+        secretBuffer
+      );
+
+      res.set("Content-Type", "text/plain; charset=UTF-8");
+      res.send(decrypted.toString("utf-8"));
+    } catch (err) {
+      res.status(400).send("Decryption failed: " + err.message);
+    }
+  });
+
+  req.pipe(busboy);
 });
 
-// Порт для Render
+// Render expects app to listen on this port
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+app.listen(PORT, () => console.log(`Running on port ${PORT}`));
